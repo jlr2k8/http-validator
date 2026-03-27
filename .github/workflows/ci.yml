@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  mongo-and-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MongoDB (Docker Compose)
+        run: docker compose up -d --wait
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+
+      - name: Verify Python imports
+        run: python -m compileall -q src/http_validator && python -c "from http_validator import mongo_store; print('imports ok')"
+
+      - name: Verify MongoDB from Python
+        env:
+          MONGODB_URI: mongodb://127.0.0.1:27017
+        run: |
+          python -c "import os; from pymongo import MongoClient; \
+            MongoClient(os.environ['MONGODB_URI'], serverSelectionTimeoutMS=10_000).admin.command('ping'); \
+            print('MongoDB ping OK')"
+
+      - name: Shut down MongoDB
+        if: always()
+        run: docker compose down -v

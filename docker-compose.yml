@@ -1,0 +1,21 @@
+# Local MongoDB (no auth). From repo root:
+#   make
+# Stop without deleting data: make stop
+# (Never use `docker compose down -v` here if you want to keep the volume.)
+services:
+  mongodb:
+    image: mongo:7
+    container_name: http-validator-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - http-validator-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  http-validator-mongo-data:
