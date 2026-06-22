@@ -23,6 +23,7 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 - `src/http_validator/mongo_store.py` MongoDB inserts
 - `src/http_validator/es_store.py` Elasticsearch indexing after each run
 - `src/http_validator/mongo_queries.py` shared Mongo read helpers
+- `src/http_validator/api/` FastAPI read API for the dashboard
 - `link_validator.py` convenience entrypoint for local runs
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
@@ -51,7 +52,7 @@ python3 link_validator.py https://example.com
 # or: http-validator https://example.com
 ```
 
-`pip install -e .` pulls in `pymongo`. For Elasticsearch indexing, also install the web extra:
+`pip install -e .` pulls in `pymongo`. For Elasticsearch indexing and the read API, also install the web extra:
 
 ```bash
 pip install -e ".[web]"

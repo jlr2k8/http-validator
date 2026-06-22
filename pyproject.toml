@@ -14,11 +14,14 @@ dependencies = [
 
 [project.optional-dependencies]
 web = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
     "elasticsearch>=8.12,<9",
 ]
 
 [project.scripts]
 http-validator = "http_validator.cli:run"
+http-validator-api = "http_validator.api.main:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
