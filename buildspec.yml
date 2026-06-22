@@ -1,0 +1,27 @@
+version: 0.2
+
+# Push to main: build image → ECR → App Runner auto-deploy → sync custom domain + Route53.
+phases:
+  pre_build:
+    commands:
+      - echo "Build $CODEBUILD_BUILD_ID started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - test -n "$ECR_REPOSITORY_URI" || (echo "ERROR ECR_REPOSITORY_URI is not set" && exit 1)
+      - test -n "$DOMAIN_NAME" || (echo "ERROR DOMAIN_NAME is not set on CodeBuild project" && exit 1)
+      - test -n "$HOSTED_ZONE_ID" || (echo "ERROR HOSTED_ZONE_ID is not set on CodeBuild project" && exit 1)
+      - export ECR_REGISTRY="${ECR_REPOSITORY_URI%%/*}"
+      - export IMAGE_TAG="${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}"
+      - echo "Target $ECR_REPOSITORY_URI:$IMAGE_TAG and :latest"
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+  build:
+    commands:
+      - docker build -t "$ECR_REPOSITORY_URI:$IMAGE_TAG" .
+      - docker tag "$ECR_REPOSITORY_URI:$IMAGE_TAG" "$ECR_REPOSITORY_URI:latest"
+
+  post_build:
+    commands:
+      - docker push "$ECR_REPOSITORY_URI:$IMAGE_TAG"
+      - docker push "$ECR_REPOSITORY_URI:latest"
+      - echo "Image pushed; App Runner auto-deploys :latest"
+      - chmod +x scripts/ensure-custom-domain.sh
+      - ./scripts/ensure-custom-domain.sh

@@ -29,7 +29,9 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
 - `scripts/dev.sh` local Vite + API dev server
-- `Dockerfile` production container (API + React on :8080)
+- `Dockerfile` / `buildspec.yml` production container (API + React on :8080)
+- `infra/cloudformation/` App Runner + pipeline stacks (same pattern as chess-jrog-io)
+- `scripts/deploy.sh`, `deploy-pipeline.sh`, `ensure-custom-domain.sh`
 - `docker-compose.yml` local MongoDB + Elasticsearch
 - `pyproject.toml` package metadata and dependencies
 
@@ -134,6 +136,22 @@ After a successful Mongo write, each run is also indexed in Elasticsearch unless
 If Elasticsearch is not reachable, the run still finishes; you will see `Elasticsearch indexing failed: …` on stderr.
 
 ## Dashboard (React + read API)
+
+### AWS (production) — same as chess-jrog-io / chat-jrog-io
+
+```bash
+export AWS_REGION=us-west-2
+export STACK_NAME=http-validator
+export DOMAIN_NAME=validator.jrog.io
+export HOSTED_ZONE_ID=Z3FQ1J6D2XJRDT
+export ECR_REPOSITORY_NAME=http-validator
+
+./scripts/deploy.sh
+./scripts/ensure-custom-domain.sh
+./scripts/deploy-pipeline.sh   # needs GITHUB_TOKEN
+```
+
+Push to `main` → CodePipeline builds Docker → ECR → App Runner auto-deploy. Set `mongoUri` and `elasticsearchUrl` in the stack's Secrets Manager secret before going live. See `infra/cloudformation/README.md`.
 
 ### Local dev
 
