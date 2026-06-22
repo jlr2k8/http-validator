@@ -28,7 +28,9 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 - `link_validator.py` convenience entrypoint for local runs
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
-- `docker-compose.yml` / `Makefile` local MongoDB + Elasticsearch (`make`)
+- `scripts/dev.sh` local Vite + API dev server
+- `Dockerfile` production container (API + React on :8080)
+- `docker-compose.yml` local MongoDB + Elasticsearch
 - `pyproject.toml` package metadata and dependencies
 
 ## Install
@@ -135,7 +137,7 @@ If Elasticsearch is not reachable, the run still finishes; you will see `Elastic
 
 ### Local dev
 
-Uses **Vite** for the UI (hot reload on :5173, proxies `/api` to FastAPI on :8000).
+Uses **Vite** for the UI (hot reload on :5173, proxies `/api` to FastAPI on :8000). Production Docker image runs `vite build` and serves the static bundle from FastAPI on :8080.
 
 ```bash
 docker-compose up -d                    # Mongo + Elasticsearch
