@@ -21,18 +21,10 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 
 - `src/http_validator/cli.py` main implementation
 - `src/http_validator/mongo_store.py` MongoDB inserts
-- `src/http_validator/es_store.py` Elasticsearch indexing after each run
-- `src/http_validator/mongo_queries.py` shared Mongo read helpers
-- `src/http_validator/api/` FastAPI read API for the dashboard
-- `frontend/` React dashboard (Vite)
 - `link_validator.py` convenience entrypoint for local runs
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
-- `scripts/dev.sh` local Vite + API dev server
-- `Dockerfile` / `buildspec.yml` production container (API + React on :8080)
-- `infra/cloudformation/` App Runner + pipeline stacks (same pattern as chess-jrog-io)
-- `scripts/deploy.sh`, `deploy-pipeline.sh`, `ensure-custom-domain.sh`
-- `docker-compose.yml` local MongoDB + Elasticsearch
+- `docker-compose.yml` / `Makefile` local MongoDB (`make`)
 - `pyproject.toml` package metadata and dependencies
 
 ## Install
@@ -57,13 +49,7 @@ python3 link_validator.py https://example.com
 # or: http-validator https://example.com
 ```
 
-`pip install -e .` pulls in `pymongo`. For Elasticsearch indexing and the read API, also install the web extra:
-
-```bash
-pip install -e ".[web]"
-```
-
-Re-run install inside the venv after `pyproject.toml` changes.
+`pip install -e .` pulls in `pymongo`. Re-run it inside the venv after `pyproject.toml` changes.
 
 **Avoid** `pip install --break-system-packages` on the system interpreter unless you know you need it.
 
@@ -74,7 +60,7 @@ Each successful crawl **also** writes to Mongo unless you pass `--no-mongo`.
 1. Start Mongo locally (from repo root, data persists in a Docker volume):
 
    ```bash
-   docker-compose up -d
+   make
    ```
 
 2. Run the validator as usual — no extra flags. It uses `mongodb://127.0.0.1:27017` unless `MONGODB_URI` is set (or you pass `--mongo-uri`).
@@ -83,7 +69,7 @@ Each successful crawl **also** writes to Mongo unless you pass `--no-mongo`.
    python3 link_validator.py https://example.com
    ```
 
-3. **Stop** Mongo without deleting data: `docker-compose down`. Do not use `docker compose down -v` locally unless you intend to wipe the volume.
+3. **Stop** Mongo without deleting data: `make stop`. Do not use `docker compose down -v` locally unless you intend to wipe the volume.
 
 **Collections** (database name `http_validator`, or `MONGODB_DB` / `--mongo-db`):
 
@@ -102,76 +88,6 @@ db.link_validation_checks.find({ run_id: r._id, ok: false })
 ```
 
 If Mongo is not reachable, the run still finishes and text logs are written; you will see `MongoDB write failed: …` on stderr.
-
-## Elasticsearch (default after Mongo write)
-
-After a successful Mongo write, each run is also indexed in Elasticsearch unless you pass `--no-es`.
-
-1. Start local infra (Mongo + Elasticsearch):
-
-   ```bash
-   docker-compose up -d
-   ```
-
-2. Activate the project venv, then install the web extra (required on Debian/Ubuntu/WSL — system `pip` is blocked):
-
-   ```bash
-   source .venv/bin/activate   # or: source ./toggle_venv.sh
-   pip install -e ".[web]"
-   ```
-
-3. Run the validator as usual. It uses `http://127.0.0.1:9200` unless `ELASTICSEARCH_URL` is set (or you pass `--es-url`).
-
-   ```bash
-   python3 link_validator.py https://example.com
-   ```
-
-**Indices:**
-
-| Index | Contents |
-|-------|----------|
-| `validation-runs` | One document per run (summary + metadata). |
-| `validation-checks` | One document per checked URL (denormalized run fields for search). |
-
-If Elasticsearch is not reachable, the run still finishes; you will see `Elasticsearch indexing failed: …` on stderr.
-
-## Dashboard (React + read API)
-
-### AWS (production) — same as chess-jrog-io / chat-jrog-io
-
-```bash
-export AWS_REGION=us-west-2
-export STACK_NAME=http-validator
-export DOMAIN_NAME=validator.jrog.io
-export HOSTED_ZONE_ID=Z3FQ1J6D2XJRDT
-export ECR_REPOSITORY_NAME=http-validator
-
-./scripts/deploy.sh
-./scripts/ensure-custom-domain.sh
-./scripts/deploy-pipeline.sh   # needs GITHUB_TOKEN
-```
-
-Push to `main` → CodePipeline builds Docker → ECR → App Runner auto-deploy. Set `mongoUri` and `elasticsearchUrl` in the stack's Secrets Manager secret before going live. See `infra/cloudformation/README.md`.
-
-### Local dev
-
-Uses **Vite** for the UI (hot reload on :5173, proxies `/api` to FastAPI on :8000). Production Docker image runs `vite build` and serves the static bundle from FastAPI on :8080.
-
-```bash
-docker-compose up -d                    # Mongo + Elasticsearch
-source .venv/bin/activate && pip install -e ".[web]"
-./scripts/dev.sh                        # Vite :5173 + API :8000
-python3 link_validator.py https://example.com
-```
-
-**API endpoints:**
-
-- `GET /api/health` — Mongo + Elasticsearch connectivity
-- `GET /api/sites` — distinct crawled sites
-- `GET /api/sites/{site_slug}/runs` — run history
-- `GET /api/runs/{run_id}/checks` — checks for one run
-- `GET /api/runs/{run_id}/by-page` — checks grouped by source page
-- `GET /api/search/checks?q=...` — full-text search (Elasticsearch)
 
 ## Run
 
@@ -222,8 +138,6 @@ Exit code behavior:
 - `--no-mongo` do not write this run to MongoDB
 - `--mongo-uri <uri>` MongoDB URI (overrides `MONGODB_URI`; default URI is `mongodb://127.0.0.1:27017` when unset)
 - `--mongo-db <name>` database name (default `http_validator` or `MONGODB_DB`)
-- `--no-es` do not index this run in Elasticsearch
-- `--es-url <url>` Elasticsearch URL (overrides `ELASTICSEARCH_URL`; default `http://127.0.0.1:9200`)
 
 ## Example
 
