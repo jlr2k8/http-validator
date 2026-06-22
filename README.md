@@ -21,10 +21,11 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 
 - `src/http_validator/cli.py` main implementation
 - `src/http_validator/mongo_store.py` MongoDB inserts
+- `src/http_validator/es_store.py` Elasticsearch indexing after each run
 - `link_validator.py` convenience entrypoint for local runs
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
-- `docker-compose.yml` / `Makefile` local MongoDB (`make`)
+- `docker-compose.yml` / `Makefile` local MongoDB + Elasticsearch (`make`)
 - `pyproject.toml` package metadata and dependencies
 
 ## Install
@@ -49,7 +50,13 @@ python3 link_validator.py https://example.com
 # or: http-validator https://example.com
 ```
 
-`pip install -e .` pulls in `pymongo`. Re-run it inside the venv after `pyproject.toml` changes.
+`pip install -e .` pulls in `pymongo`. For Elasticsearch indexing, also install the web extra:
+
+```bash
+pip install -e ".[web]"
+```
+
+Re-run install inside the venv after `pyproject.toml` changes.
 
 **Avoid** `pip install --break-system-packages` on the system interpreter unless you know you need it.
 
@@ -60,7 +67,7 @@ Each successful crawl **also** writes to Mongo unless you pass `--no-mongo`.
 1. Start Mongo locally (from repo root, data persists in a Docker volume):
 
    ```bash
-   make
+   docker-compose up -d
    ```
 
 2. Run the validator as usual — no extra flags. It uses `mongodb://127.0.0.1:27017` unless `MONGODB_URI` is set (or you pass `--mongo-uri`).
@@ -69,7 +76,7 @@ Each successful crawl **also** writes to Mongo unless you pass `--no-mongo`.
    python3 link_validator.py https://example.com
    ```
 
-3. **Stop** Mongo without deleting data: `make stop`. Do not use `docker compose down -v` locally unless you intend to wipe the volume.
+3. **Stop** Mongo without deleting data: `docker-compose down`. Do not use `docker compose down -v` locally unless you intend to wipe the volume.
 
 **Collections** (database name `http_validator`, or `MONGODB_DB` / `--mongo-db`):
 
@@ -88,6 +95,38 @@ db.link_validation_checks.find({ run_id: r._id, ok: false })
 ```
 
 If Mongo is not reachable, the run still finishes and text logs are written; you will see `MongoDB write failed: …` on stderr.
+
+## Elasticsearch (default after Mongo write)
+
+After a successful Mongo write, each run is also indexed in Elasticsearch unless you pass `--no-es`.
+
+1. Start local infra (Mongo + Elasticsearch):
+
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Activate the project venv, then install the web extra (required on Debian/Ubuntu/WSL — system `pip` is blocked):
+
+   ```bash
+   source .venv/bin/activate   # or: source ./toggle_venv.sh
+   pip install -e ".[web]"
+   ```
+
+3. Run the validator as usual. It uses `http://127.0.0.1:9200` unless `ELASTICSEARCH_URL` is set (or you pass `--es-url`).
+
+   ```bash
+   python3 link_validator.py https://example.com
+   ```
+
+**Indices:**
+
+| Index | Contents |
+|-------|----------|
+| `validation-runs` | One document per run (summary + metadata). |
+| `validation-checks` | One document per checked URL (denormalized run fields for search). |
+
+If Elasticsearch is not reachable, the run still finishes; you will see `Elasticsearch indexing failed: …` on stderr.
 
 ## Run
 
@@ -138,6 +177,8 @@ Exit code behavior:
 - `--no-mongo` do not write this run to MongoDB
 - `--mongo-uri <uri>` MongoDB URI (overrides `MONGODB_URI`; default URI is `mongodb://127.0.0.1:27017` when unset)
 - `--mongo-db <name>` database name (default `http_validator` or `MONGODB_DB`)
+- `--no-es` do not index this run in Elasticsearch
+- `--es-url <url>` Elasticsearch URL (overrides `ELASTICSEARCH_URL`; default `http://127.0.0.1:9200`)
 
 ## Example
 

@@ -1,6 +1,6 @@
-# Local MongoDB (no auth). From repo root:
-#   make
-# Stop without deleting data: make stop
+# Local MongoDB + Elasticsearch (no auth). From repo root:
+#   docker-compose up -d
+# Stop without deleting data: docker-compose down
 # (Never use `docker compose down -v` here if you want to keep the volume.)
 services:
   mongodb:
@@ -17,5 +17,24 @@ services:
       retries: 6
       start_period: 15s
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: http-validator-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - http-validator-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   http-validator-mongo-data:
+  http-validator-es-data:

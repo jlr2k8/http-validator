@@ -12,6 +12,11 @@ dependencies = [
     "pymongo>=4.6",
 ]
 
+[project.optional-dependencies]
+web = [
+    "elasticsearch>=8.12,<9",
+]
+
 [project.scripts]
 http-validator = "http_validator.cli:run"
 

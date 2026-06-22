@@ -24,6 +24,7 @@ DEFAULT_WORKERS = 16
 DEFAULT_LATENCY_THRESHOLD = 2.0
 SITEMAP_MAX_FETCHES = 100
 DEFAULT_MONGO_URI = "mongodb://127.0.0.1:27017"
+DEFAULT_ES_URL = "http://127.0.0.1:9200"
 
 
 @dataclasses.dataclass
@@ -606,6 +607,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=os.environ.get("MONGODB_DB", "http_validator"),
         help="MongoDB database name (default: http_validator or MONGODB_DB).",
     )
+    parser.add_argument(
+        "--no-es",
+        action="store_true",
+        help="Skip indexing this run in Elasticsearch (default indexes when Mongo write succeeds).",
+    )
+    parser.add_argument(
+        "--es-url",
+        default=None,
+        help=f"Elasticsearch URL (default: ELASTICSEARCH_URL env if set, else {DEFAULT_ES_URL}).",
+    )
     return parser.parse_args(argv)
 
 
@@ -766,6 +777,29 @@ def run(argv: list[str] | None = None) -> int:
                 bad_count=bad_count,
             )
             print(f"Stored run in MongoDB ({args.mongo_db}.{mongo_store.RUNS_COL}): _id={run_id}")
+
+            if not args.no_es:
+                es_url = args.es_url or os.environ.get("ELASTICSEARCH_URL") or DEFAULT_ES_URL
+                if es_url.lower() not in ("", "none", "off", "false", "0"):
+                    from http_validator import es_store
+
+                    try:
+                        es_store.index_validation_run(
+                            es_url,
+                            run_id=run_id,
+                            start_url=start_url,
+                            site_slug=site_slug,
+                            run_label=effective_label,
+                            started_at=run_started,
+                            finished_at=run_finished,
+                            options=options_snapshot,
+                            results=results,
+                            good_count=good_count,
+                            bad_count=bad_count,
+                        )
+                        print(f"Indexed run in Elasticsearch: run_id={run_id}")
+                    except Exception as exc:
+                        print(f"Elasticsearch indexing failed: {exc}", file=sys.stderr)
         except Exception as exc:
             print(f"MongoDB write failed: {exc}", file=sys.stderr)
 
