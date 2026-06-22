@@ -24,6 +24,7 @@ Use `--no-sitemap` to skip loading the sitemap (checks are only URLs discovered 
 - `src/http_validator/es_store.py` Elasticsearch indexing after each run
 - `src/http_validator/mongo_queries.py` shared Mongo read helpers
 - `src/http_validator/api/` FastAPI read API for the dashboard
+- `frontend/` React dashboard (Vite)
 - `link_validator.py` convenience entrypoint for local runs
 - `query_validator_data.py` print Mongo history for a site (`--json`, `--json-by-page`)
 - `toggle_venv.sh` source to activate/deactivate `.venv`
@@ -129,6 +130,28 @@ After a successful Mongo write, each run is also indexed in Elasticsearch unless
 | `validation-checks` | One document per checked URL (denormalized run fields for search). |
 
 If Elasticsearch is not reachable, the run still finishes; you will see `Elasticsearch indexing failed: …` on stderr.
+
+## Dashboard (React + read API)
+
+### Local dev
+
+Uses **Vite** for the UI (hot reload on :5173, proxies `/api` to FastAPI on :8000).
+
+```bash
+docker-compose up -d                    # Mongo + Elasticsearch
+source .venv/bin/activate && pip install -e ".[web]"
+./scripts/dev.sh                        # Vite :5173 + API :8000
+python3 link_validator.py https://example.com
+```
+
+**API endpoints:**
+
+- `GET /api/health` — Mongo + Elasticsearch connectivity
+- `GET /api/sites` — distinct crawled sites
+- `GET /api/sites/{site_slug}/runs` — run history
+- `GET /api/runs/{run_id}/checks` — checks for one run
+- `GET /api/runs/{run_id}/by-page` — checks grouped by source page
+- `GET /api/search/checks?q=...` — full-text search (Elasticsearch)
 
 ## Run
 
